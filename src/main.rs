@@ -6,6 +6,7 @@ mod error;
 use error::GdqBotError;
 
 // Constants
+const TWITCH_CHANNEL_ID: &str = "22510310";
 const KVSTORE_URL: &str = "https://kvstore.binarydream.fi/";
 const KVSTORE_KEY: &str = "gdq_game";
 const POLL_RATE: Duration = Duration::from_secs(2 * 60);
@@ -37,7 +38,6 @@ struct GdqBot {
     client_secret: twitch_api2::twitch_oauth2::ClientSecret,
     access_token: Option<AppAccessToken>,
     current_game: String,
-    channel_id: String,
     http_client: reqwest::Client,
     kvstore_token: String,
     helix_client: HelixClient::<'static, reqwest::Client>,
@@ -55,7 +55,6 @@ struct GdqBot {
 /// - `client_secret`: The Twitch client secret.
 /// - `access_token`: The access token for Twitch API.
 /// - `current_game`: The current game being played.
-/// - `channel_id`: The ID of the Twitch channel.
 /// - `http_client`: The HTTP client for making requests.
 /// - `kvstore_token`: The token for accessing the key-value store.
 /// - `helix_client`: The Helix client for interacting with Twitch API.
@@ -80,7 +79,6 @@ impl GdqBot {
             client_secret: twitch_api2::twitch_oauth2::ClientSecret::new(std::env::var("TWITCH_CLIENT_SECRET").unwrap_or("".to_string())),
             access_token: None,
             current_game: String::from(""),
-            channel_id: String::from(std::env::var("CHANNEL_ID").unwrap_or("".to_string())),
             http_client: reqwest::Client::new(),
             kvstore_token: String::from(std::env::var("KVSTORE_TOKEN").unwrap_or("".to_string())),
             helix_client: HelixClient::<'static, reqwest::Client>::default(),
@@ -191,7 +189,7 @@ impl GdqBot {
     /// Returns an error if the current game cannot be retrieved from Twitch API.
     async fn get_current_game_from_twitch(&mut self) -> Result<Option<String>, GdqBotError> {
         let request = get_streams::GetStreamsRequest::builder()
-            .user_id(vec![self.channel_id.clone().into()])
+            .user_id(vec![TWITCH_CHANNEL_ID.into()])
             .build();
         let response: Vec<get_streams::Stream> = self.helix_client.req_get(request, &self.access_token.clone().unwrap()).await?.data;
 
