@@ -1,0 +1,25 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gdqbot
+  namespace: gdqbot
+  labels:
+    app: gdqbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gdqbot
+  template:
+    metadata:
+      labels:
+        app: gdqbot
+    spec:
+      containers:
+      - name: gdqbot
+        image: ghcr.io/dilaz/gdqbot:latest
+        imagePullPolicy: Always
+        envFrom:
+          - secretRef:
+              name: gdqbot-secrets
