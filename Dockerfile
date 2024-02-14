@@ -1,7 +1,6 @@
-FROM rust:latest AS builder
+FROM messense/rust-musl-cross:armv7-musleabihf AS builder
 WORKDIR /gdqbot
 COPY . .
-RUN rustup target add armv7-unknown-linux-musleabihf
 RUN cargo build --release --target armv7-unknown-linux-musleabihf
 
 FROM scratch

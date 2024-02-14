@@ -3,13 +3,6 @@ name = "gdqbot"
 version = "0.1.0"
 edition = "2021"
 
-[target.armv7-unknown-linux-musleabihf]
-linker = "arm-linux-gnueabihf-gcc"
-pre-build = [
-    "dpkg --add-architecture $CROSS_DEB_ARCH",
-    "apt-get update && apt-get install --assume-yes libssl-dev:$CROSS_DEB_ARCH"
-]
-
 [dependencies]
 dotenv = "0.15.0"
 http = "0.2.9"
