@@ -21,6 +21,8 @@ jobs:
           toolchain: stable
       - name: Build and test code
         run: |
+          mkdir ~/.cargo
+          mount -t tmpfs -o size=2048m tmpfs ~/.cargo
           cargo build --verbose
           cargo test --verbose
       - name: Set up QEMU
