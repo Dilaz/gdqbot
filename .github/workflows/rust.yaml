@@ -14,11 +14,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Mount tmpfs to ./cargo
-        run: |
-          rm -r ~/.cargo
-          mkdir ~/.cargo
-          mount -t tmpfs -o size=2048m tmpfs ~/.cargo
+      - name: Set Swap Space
+        uses: pierotofy/set-swap-space@v1.0
+        with:
+          swap-size-gb: 10
+      - run: |
+          # Workaround for https://github.com/rust-lang/cargo/issues/8719
+          sudo mkdir -p ~/.cargo
+          sudo mount -t tmpfs -o size=10G none ~/.cargo
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
