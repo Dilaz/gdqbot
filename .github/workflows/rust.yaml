@@ -36,6 +36,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           push: true
+          platforms: linux/amd64,linux/arm/v7
           tags: |
             ghcr.io/dilaz/gdqbot:latest
             ghcr.io/dilaz/gdqbot:${{ github.sha }}
