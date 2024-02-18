@@ -1,17 +1,18 @@
 use std::time::Duration;
-use serenity::{builder::ExecuteWebhook, http::Http, model::webhook::Webhook};
+use serenity::{builder::ExecuteWebhook, http::Http, model::{channel::Embed, webhook::Webhook}};
 use twitch_api2::{twitch_oauth2::AppAccessToken, HelixClient, helix::streams::get_streams};
 
 mod error;
 use error::GdqBotError;
 
 // Constants
-const TWITCH_CHANNEL_ID: &str = "22510310";
+// const TWITCH_CHANNEL_NAME: &str = "gamesdonequick";
+const TWITCH_CHANNEL_NAME: &str = "esamarathon";
 const KVSTORE_URL: &str = "https://kvstore.binarydream.fi/";
 const KVSTORE_KEY: &str = "gdq_game";
 const POLL_RATE: Duration = Duration::from_secs(2 * 60);
 const USERNAME: &str = "GDQBot";
-const GDQ_TWITCH_URL: &str = "https://www.twitch.tv/gamesdonequick";
+const TWITCH_BASE_URL: &str = "https://www.twitch.tv/";
 
 #[tokio::main]
 async fn main() -> Result<(), twitch_api2::twitch_oauth2::tokens::errors::AppAccessTokenError<twitch_api2::client::CompatError<reqwest::Error>>>{
@@ -167,15 +168,18 @@ impl GdqBot {
         for webhook in self.webhooks.iter() {
             let http = Http::new("");
             let webhook = Webhook::from_url(&http, webhook).await?;
-            let builder = ExecuteWebhook::new().embed(
-                serenity::builder::CreateEmbed::default()
-                    .title("GDQ hype!")
-                    .description(format!("Game changed to **{}**\n*{}*\n{}", game, stream_title, GDQ_TWITCH_URL)
-                    .as_str())
-                    .color(0x00FF00)
-            ).username(USERNAME);
             webhook
-                .execute(&http, true, builder).await?;
+                .execute(&http, true, |w: &mut ExecuteWebhook<'_>| {
+                    w.embeds(vec![
+                        Embed::fake(|e| {
+                            e.title("GDQ hype!")
+                            .description(format!("Game changed to **{}**\n*{}*\n{}{}", game, stream_title, TWITCH_BASE_URL, TWITCH_CHANNEL_NAME)
+                            .as_str())
+                            .color(0x00FF00)
+                        })
+                    ])
+                    .username(USERNAME)
+                }).await?;
         }
         println!("Game changed to: {}", game);
     
@@ -189,7 +193,7 @@ impl GdqBot {
     /// Returns an error if the current game cannot be retrieved from Twitch API.
     async fn get_current_game_from_twitch(&mut self) -> Result<Option<String>, GdqBotError> {
         let request = get_streams::GetStreamsRequest::builder()
-            .user_id(vec![TWITCH_CHANNEL_ID.into()])
+            .user_login(vec![TWITCH_CHANNEL_NAME.into()])
             .build();
         let response: Vec<get_streams::Stream> = self.helix_client.req_get(request, &self.access_token.clone().unwrap()).await?.data;
 
