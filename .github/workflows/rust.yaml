@@ -75,6 +75,7 @@ jobs:
           action: deploy
           strategy: basic
           manifests: |
+            k8s/configmap.yaml
             k8s/deployment.yaml
           images: |
             ghcr.io/dilaz/gdqbot:${{ github.sha }}

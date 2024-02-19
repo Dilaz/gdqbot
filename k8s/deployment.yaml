@@ -21,5 +21,7 @@ spec:
         image: ghcr.io/dilaz/gdqbot:latest
         imagePullPolicy: Always
         envFrom:
+          - configMapRef:
+            name: gdqbot-configs
           - secretRef:
               name: gdqbot-secrets

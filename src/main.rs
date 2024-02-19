@@ -6,8 +6,7 @@ mod error;
 use error::GdqBotError;
 
 // Constants
-// const TWITCH_CHANNEL_NAME: &str = "gamesdonequick";
-const TWITCH_CHANNEL_NAME: &str = "esamarathon";
+const DEFAULT_TWITCH_CHANNEL_NAME: &str = "gamesdonequick";
 const KVSTORE_URL: &str = "https://kvstore.binarydream.fi/";
 const KVSTORE_KEY: &str = "gdq_game";
 const POLL_RATE: Duration = Duration::from_secs(2 * 60);
@@ -35,6 +34,7 @@ struct KVStoreRequest {
 }
 
 struct GdqBot {
+    channel_name: String,
     client_id: twitch_api2::twitch_oauth2::ClientId,
     client_secret: twitch_api2::twitch_oauth2::ClientSecret,
     access_token: Option<AppAccessToken>,
@@ -76,6 +76,7 @@ impl GdqBot {
         let webhook_url = std::env::var("WEBHOOK_URL").unwrap_or("".to_string());
         
         GdqBot {
+            channel_name: String::from(std::env::var("TWITCH_CHANNEL_NAME").unwrap_or(DEFAULT_TWITCH_CHANNEL_NAME.to_string())),
             client_id: twitch_api2::twitch_oauth2::ClientId::new(std::env::var("TWITCH_CLIENT_ID").unwrap_or("".to_string())),
             client_secret: twitch_api2::twitch_oauth2::ClientSecret::new(std::env::var("TWITCH_CLIENT_SECRET").unwrap_or("".to_string())),
             access_token: None,
@@ -173,7 +174,7 @@ impl GdqBot {
                     w.embeds(vec![
                         Embed::fake(|e| {
                             e.title("GDQ hype!")
-                            .description(format!("Game changed to **{}**\n*{}*\n{}{}", game, stream_title, TWITCH_BASE_URL, TWITCH_CHANNEL_NAME)
+                            .description(format!("Game changed to **{}**\n*{}*\n{}{}", &game, &stream_title, &TWITCH_BASE_URL, &self.channel_name)
                             .as_str())
                             .color(0x00FF00)
                         })
@@ -193,7 +194,7 @@ impl GdqBot {
     /// Returns an error if the current game cannot be retrieved from Twitch API.
     async fn get_current_game_from_twitch(&mut self) -> Result<Option<String>, GdqBotError> {
         let request = get_streams::GetStreamsRequest::builder()
-            .user_login(vec![TWITCH_CHANNEL_NAME.into()])
+            .user_login(vec![self.channel_name.clone().into()])
             .build();
         let response: Vec<get_streams::Stream> = self.helix_client.req_get(request, &self.access_token.clone().unwrap()).await?.data;
 

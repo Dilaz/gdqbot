@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gdqbot-configs
+  namespace: gdqbot
+  labels:
+    app: gdqbot
+data:
+  TWITCH_CHANNEL_NAME: gamesdonequick
