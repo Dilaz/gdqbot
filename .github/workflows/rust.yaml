@@ -15,7 +15,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Set Swap Space
-        uses: actionhippie/set-swap-space@v1
+        uses: pierotofy/set-swap-space@master
         with:
           swap-size-gb: 10
       - run: |
