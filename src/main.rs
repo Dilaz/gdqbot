@@ -2,6 +2,9 @@ use std::time::Duration;
 use serenity::{builder::ExecuteWebhook, http::Http, model::{channel::Embed, webhook::Webhook}};
 use twitch_api2::{twitch_oauth2::AppAccessToken, HelixClient, helix::streams::get_streams};
 
+#[cfg(any(test, debug_assertions))]
+use dotenvy;
+
 mod error;
 use error::GdqBotError;
 
@@ -15,7 +18,9 @@ const TWITCH_BASE_URL: &str = "https://www.twitch.tv/";
 
 #[tokio::main]
 async fn main() -> Result<(), twitch_api2::twitch_oauth2::tokens::errors::AppAccessTokenError<twitch_api2::client::CompatError<reqwest::Error>>>{
-    dotenv::dotenv().ok();
+    #[cfg(any(test, debug_assertions))]
+    dotenvy::dotenv().ok();
+
     let mut bot = GdqBot::new();
     bot.init_helix().await?;
     bot.get_current_game_from_db().await;
