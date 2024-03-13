@@ -1,5 +1,5 @@
 use std::time::Duration;
-use serenity::{builder::ExecuteWebhook, http::Http, model::{channel::Embed, webhook::Webhook}};
+use serenity::{all::CreateEmbed, builder::ExecuteWebhook, http::Http, model::webhook::Webhook};
 use twitch_api2::{twitch_oauth2::AppAccessToken, HelixClient, helix::streams::get_streams};
 
 #[cfg(any(test, debug_assertions))]
@@ -174,19 +174,13 @@ impl GdqBot {
         for webhook in self.webhooks.iter() {
             let http = Http::new("");
             let webhook = Webhook::from_url(&http, webhook).await?;
-            webhook
-                .execute(&http, true, |w: &mut ExecuteWebhook<'_>| {
-                    w.embeds(vec![
-                        Embed::fake(|e| {
-                            e.title("GDQ hype!")
-                            .description(format!("Game changed to **{}**\n*{}*\n{}{}", &game, &stream_title, &TWITCH_BASE_URL, &self.channel_name)
-                            .as_str())
-                            .color(0x00FF00)
-                        })
-                    ])
-                    .username(USERNAME)
-                }).await?;
+            let embed = CreateEmbed::new()
+                .title(format!("GDQ hype!"))
+                .description(format!("Game changed to **{}**\n*{}*\n{}{}", &game, &stream_title, &TWITCH_BASE_URL, &self.channel_name));
+            let builder = ExecuteWebhook::new().embed(embed).username(USERNAME);
+            webhook.execute(&http, false, builder).await?;
         }
+
         println!("Game changed to: {}", game);
     
         Ok(())
