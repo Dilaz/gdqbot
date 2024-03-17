@@ -1,4 +1,4 @@
-name: build-docker-container
+name: deploy-to-kubernetes
 
 on:
   workflow_run:
