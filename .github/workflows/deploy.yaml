@@ -1,0 +1,33 @@
+name: build-docker-container
+
+on:
+  workflow_run:
+    types: [completed]
+    workflow: build-docker-container
+    branches: [master]
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set the Kubernetes context
+        uses: azure/k8s-set-context@v3
+        with:
+          method: service-account
+          k8s-url: ${{ secrets.KUBERNETES_HOST }}
+          k8s-secret: ${{ secrets.KUBERNETES_SECRET }}
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Deploy to the Kubernetes cluster
+        uses: azure/k8s-deploy@v4
+        with:
+          namespace: gdqbot
+          action: deploy
+          strategy: basic
+          manifests: |
+            k8s/configmap.yaml
+            k8s/deployment.yaml
+          images: |
+            ghcr.io/dilaz/gdqbot:${{ github.sha }}

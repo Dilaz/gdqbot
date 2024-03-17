@@ -1,6 +1,7 @@
 use std::time::Duration;
 use serenity::{all::CreateEmbed, builder::ExecuteWebhook, http::Http, model::webhook::Webhook};
 use twitch_api2::{twitch_oauth2::AppAccessToken, HelixClient, helix::streams::get_streams};
+use mockall::{*, predicate::*};
 
 #[cfg(any(test, debug_assertions))]
 use dotenvy;
@@ -28,7 +29,6 @@ async fn main() -> Result<(), twitch_api2::twitch_oauth2::tokens::errors::AppAcc
     println!("Starting bot");
     bot.run().await;
 
-
     Ok(())
 }
 
@@ -48,6 +48,17 @@ struct GdqBot {
     kvstore_token: String,
     helix_client: HelixClient::<'static, reqwest::Client>,
     webhooks: Vec<String>,
+}
+
+#[automock]
+trait GdqBotTrait {
+    fn new() -> Self;
+    async fn init_helix(&mut self) -> Result<(), twitch_api2::twitch_oauth2::tokens::errors::AppAccessTokenError<twitch_api2::client::CompatError<reqwest::Error>>>;
+    async fn run(&mut self);
+    async fn get_current_game_from_db(&mut self) -> String;
+    async fn set_current_game_to_db(&self, game: &String) -> Result<(), error::GdqBotError>;
+    async fn send_game_change_message(&self, game: &str, stream_title: &str) -> Result<(), error::GdqBotError>;
+    async fn get_current_game_from_twitch(&mut self) -> Result<Option<String>, GdqBotError>;
 }
 
 /// Represents a GDQBot instance.
@@ -75,7 +86,7 @@ struct GdqBot {
 /// - `set_current_game_to_db`: Sets the current game in the key-value store.
 /// - `send_game_change_message`: Sends a game change message through webhooks.
 /// - `get_current_game_from_twitch`: Retrieves the current game from Twitch API.
-impl GdqBot {
+impl GdqBotTrait for GdqBot {
     /// Creates a new instance of GDQBot.
     fn new() -> Self {
         let webhook_url = std::env::var("WEBHOOK_URL").unwrap_or("".to_string());
@@ -170,7 +181,7 @@ impl GdqBot {
     /// # Errors
     /// 
     /// Returns an error if the game change message cannot be sent.
-    async fn send_game_change_message(&self, game: &str, stream_title: &str) -> Result<(), error::GdqBotError>{
+    async fn send_game_change_message(&self, game: &str, stream_title: &str) -> Result<(), error::GdqBotError> {
         for webhook in self.webhooks.iter() {
             let http = Http::new("");
             let webhook = Webhook::from_url(&http, webhook).await?;
@@ -222,7 +233,17 @@ impl GdqBot {
 
 #[cfg(test)]
 mod tests {
-    // use super::*;
+    use super::*;
 
-    // TODO
+    #[tokio::test]
+    async fn test_new() {
+        let bot = GdqBot::new();
+        assert_eq!(bot.channel_name, "gamesdonequick");
+        assert_eq!(bot.client_id, twitch_api2::twitch_oauth2::ClientId::new(""));
+        assert_eq!(bot.client_secret, twitch_api2::twitch_oauth2::ClientSecret::new(""));
+        assert!(bot.access_token.is_none());
+        assert_eq!(bot.current_game, "");
+        assert_eq!(bot.kvstore_token, "");
+        assert_eq!(bot.webhooks, vec![""]);
+    }
 }

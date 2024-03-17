@@ -1,7 +1,7 @@
 use core::fmt;
 
 /// Represents an error that can occur in the GdqBot application.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GdqBotError {
     message: String,
 }
