@@ -3,7 +3,7 @@ name: build-docker-container
 on:
   workflow_run:
     types: [completed]
-    workflow: [build-docker-container]
+    workflows: [build-docker-container]
     branches: [master]
 
 jobs:
