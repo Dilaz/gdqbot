@@ -3,7 +3,7 @@ name: build-docker-container
 on:
   workflow_run:
     types: [completed]
-    workflow: [Build and test]
+    workflows: [Build and test]
     branches: [master]
 
 env:
