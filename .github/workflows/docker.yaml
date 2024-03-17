@@ -3,14 +3,14 @@ name: build-docker-container
 on:
   workflow_run:
     types: [completed]
-    workflow: build-and-test
+    workflow: [build-and-test]
     branches: [master]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build-docker-containers:
+  build-docker-container:
     strategy:
       matrix:
         platform: [linux/arm/v7, linux/amd64]
