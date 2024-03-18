@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        platforms:
+        platform:
           - linux/amd64
           - linux/arm/v6
           - linux/arm/v7
