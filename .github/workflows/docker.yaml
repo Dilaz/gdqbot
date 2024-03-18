@@ -13,9 +13,6 @@ env:
 jobs:
   build-docker-container:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    strategy:
-      matrix:
-        platform: [linux/arm/v7, linux/amd64]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -25,7 +22,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
         with:
-          platforms: ${{ matrix.platform }}
+          platforms: linux/arm/v7,linux/amd64
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v2
         with:
@@ -37,7 +34,7 @@ jobs:
         with:
           push: false
           load: true
-          platforms: ${{ matrix.platform }}
+          platforms: linux/arm/v7,linux/amd64
           tags: ghcr.io/dilaz/gdqbot:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -45,7 +42,6 @@ jobs:
         uses: kitabisa/docker-slim-action@v1
         env:
           DSLIM_HTTP_PROBE: false
-          DSLIM_CONTINUE_AFTER: 2
         with:
           target: ghcr.io/dilaz/gdqbot:${{ github.sha }}
           tag: latest
