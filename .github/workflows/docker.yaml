@@ -32,8 +32,7 @@ jobs:
       - name: Build and push the Docker image
         uses: docker/build-push-action@v4
         with:
-          push: false
-          load: true
+          push: true
           platforms: linux/arm/v7,linux/amd64
           tags: ghcr.io/dilaz/gdqbot:${{ github.sha }}
           cache-from: type=gha
