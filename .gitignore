@@ -1,3 +1,4 @@
 .env
 target/
 slim.report.json
+.vscode
