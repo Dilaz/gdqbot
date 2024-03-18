@@ -5,6 +5,7 @@ on:
     types: [completed]
     workflows: [build-and-test]
     branches: [master]
+    status: success
 
 env:
   CARGO_TERM_COLOR: always
