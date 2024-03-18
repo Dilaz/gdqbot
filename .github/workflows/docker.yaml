@@ -12,6 +12,7 @@ env:
 
 jobs:
   build-docker-container:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     strategy:
       matrix:
         platform: [linux/arm/v7, linux/amd64]
@@ -36,9 +37,7 @@ jobs:
         with:
           push: false
           platforms: ${{ matrix.platform }}
-          tags: |
-            ghcr.io/dilaz/gdqbot:latest
-            ghcr.io/dilaz/gdqbot:${{ github.sha }}
+          tags: ghcr.io/dilaz/gdqbot:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Optimize Docker container with Slim Toolkit
@@ -47,6 +46,6 @@ jobs:
           DSLIM_HTTP_PROBE: false
           DSLIM_CONTINUE_AFTER: 2
         with:
-          target: ghcr.io/dilaz/gdqbot:latest
-          overwrite: true
+          target: ghcr.io/dilaz/gdqbot:${{ github.sha }}
+          tag: latest
       - run: docker image push "ghcr.io/dilaz/gdqbot" --all-tags
