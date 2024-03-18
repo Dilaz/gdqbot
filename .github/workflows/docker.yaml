@@ -33,10 +33,18 @@ jobs:
       - name: Build and push the Docker image
         uses: docker/build-push-action@v4
         with:
-          push: true
+          push: false
           platforms: ${{ matrix.platform }}
           tags: |
             ghcr.io/dilaz/gdqbot:latest
             ghcr.io/dilaz/gdqbot:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Optimize Docker container with Slim Toolkit
+        uses: kitabisa/docker-slim-action@v1
+        env:
+          DSLIM_HTTP_PROBE: false
+        with:
+          target: ${{ github.repository }}:latest
+          overwrite: true
+      - run: docker image push "${{ github.repository }}" --all-tags
