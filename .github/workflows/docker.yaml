@@ -45,7 +45,8 @@ jobs:
         uses: kitabisa/docker-slim-action@v1
         env:
           DSLIM_HTTP_PROBE: false
+          DSLIM_CONTINUE_AFTER: 2
         with:
-          target: ghcr.io/${{ github.repository }}:latest
+          target: ghcr.io/dilaz/gdqbot:latest
           overwrite: true
-      - run: docker image push "ghcr.io/${{ github.repository }}" --all-tags
+      - run: docker image push "ghcr.io/dilaz/gdqbot" --all-tags
