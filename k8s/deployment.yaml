@@ -20,6 +20,27 @@ spec:
       - name: gdqbot
         image: ghcr.io/dilaz/gdqbot:latest
         imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsUser: 10000
+          capabilities:
+            drop: [ALL]
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - /bin/ps -ef | grep gdqbot | grep -v grep
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 100m
+            memory: "10Mi"
+          limits:
+            cpu: 500m
+            memory: "50Mi"
         envFrom:
           - configMapRef:
               name: gdqbot-configs
