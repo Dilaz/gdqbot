@@ -13,9 +13,6 @@ twitch_api = { version = "0.7.0-rc.7", features = ["helix", "reqwest", "typed-bu
 dotenvy = "0.15.7"
 mockall = { version = "0.12.1" }
 
-[dev-dependencies]
-reqwest_mock = "0.7.0"
-
 [profile.release]
 strip = true
 lto = true
