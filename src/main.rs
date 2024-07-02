@@ -1,6 +1,6 @@
 use std::time::Duration;
 use serenity::{all::CreateEmbed, builder::ExecuteWebhook, http::Http, model::webhook::Webhook};
-use twitch_api2::{twitch_oauth2::AppAccessToken, HelixClient, helix::streams::get_streams};
+use twitch_api::{helix::streams::get_streams, twitch_oauth2::AppAccessToken, types, HelixClient};
 use mockall::{*, predicate::*};
 
 #[cfg(any(test, debug_assertions))]
@@ -18,7 +18,7 @@ const USERNAME: &str = "GDQBot";
 const TWITCH_BASE_URL: &str = "https://www.twitch.tv/";
 
 #[tokio::main]
-async fn main() -> Result<(), twitch_api2::twitch_oauth2::tokens::errors::AppAccessTokenError<twitch_api2::client::CompatError<reqwest::Error>>>{
+async fn main() -> Result<(), twitch_api::twitch_oauth2::tokens::errors::AppAccessTokenError<twitch_api::client::CompatError<reqwest::Error>>>{
     #[cfg(any(test, debug_assertions))]
     dotenvy::dotenv().ok();
 
@@ -38,22 +38,22 @@ struct KVStoreRequest {
     value: String,
 }
 
-struct GdqBot {
+struct GdqBot<'a> {
     channel_name: String,
-    client_id: twitch_api2::twitch_oauth2::ClientId,
-    client_secret: twitch_api2::twitch_oauth2::ClientSecret,
+    client_id: twitch_api::twitch_oauth2::ClientId,
+    client_secret: twitch_api::twitch_oauth2::ClientSecret,
     access_token: Option<AppAccessToken>,
     current_game: String,
     http_client: reqwest::Client,
     kvstore_token: String,
-    helix_client: HelixClient::<'static, reqwest::Client>,
+    helix_client: HelixClient<'a, reqwest::Client>,
     webhooks: Vec<String>,
 }
 
 #[automock]
 trait GdqBotTrait {
     fn new() -> Self;
-    async fn init_helix(&mut self) -> Result<(), twitch_api2::twitch_oauth2::tokens::errors::AppAccessTokenError<twitch_api2::client::CompatError<reqwest::Error>>>;
+    async fn init_helix(&mut self) -> Result<(), twitch_api::twitch_oauth2::tokens::errors::AppAccessTokenError<twitch_api::client::CompatError<reqwest::Error>>>;
     async fn run(&mut self);
     async fn get_current_game_from_db(&mut self) -> String;
     async fn set_current_game_to_db(&self, game: &String) -> Result<(), error::GdqBotError>;
@@ -86,23 +86,23 @@ trait GdqBotTrait {
 /// - `set_current_game_to_db`: Sets the current game in the key-value store.
 /// - `send_game_change_message`: Sends a game change message through webhooks.
 /// - `get_current_game_from_twitch`: Retrieves the current game from Twitch API.
-impl GdqBotTrait for GdqBot {
+impl<'a> GdqBotTrait for GdqBot<'a> {
     /// Creates a new instance of GDQBot.
     fn new() -> Self {
         let webhook_url = std::env::var("WEBHOOK_URL").unwrap_or("".to_string());
-        
+        let http_client = reqwest::Client::new();
+
         GdqBot {
             channel_name: String::from(std::env::var("TWITCH_CHANNEL_NAME").unwrap_or(DEFAULT_TWITCH_CHANNEL_NAME.to_string())),
-            client_id: twitch_api2::twitch_oauth2::ClientId::new(std::env::var("TWITCH_CLIENT_ID").unwrap_or("".to_string())),
-            client_secret: twitch_api2::twitch_oauth2::ClientSecret::new(std::env::var("TWITCH_CLIENT_SECRET").unwrap_or("".to_string())),
+            client_id: twitch_api::twitch_oauth2::ClientId::new(std::env::var("TWITCH_CLIENT_ID").unwrap_or("".to_string())),
+            client_secret: twitch_api::twitch_oauth2::ClientSecret::new(std::env::var("TWITCH_CLIENT_SECRET").unwrap_or("".to_string())),
             access_token: None,
             current_game: String::from(""),
-            http_client: reqwest::Client::new(),
+            http_client: http_client.clone(),
             kvstore_token: String::from(std::env::var("KVSTORE_TOKEN").unwrap_or("".to_string())),
-            helix_client: HelixClient::<'static, reqwest::Client>::default(),
+            helix_client: HelixClient::<'a, reqwest::Client>::with_client(http_client),
             webhooks: vec![webhook_url],
         }
-
     }
 
     /// Initializes the Helix client and retrieves the app access token.
@@ -110,7 +110,7 @@ impl GdqBotTrait for GdqBot {
     /// # Errors
     /// 
     /// Returns an error if the app access token cannot be retrieved.
-    async fn init_helix(&mut self) -> Result<(), twitch_api2::twitch_oauth2::tokens::errors::AppAccessTokenError<twitch_api2::client::CompatError<reqwest::Error>>> {
+    async fn init_helix(&mut self) -> Result<(), twitch_api::twitch_oauth2::tokens::errors::AppAccessTokenError<twitch_api::client::CompatError<reqwest::Error>>> {
         let token = AppAccessToken::get_app_access_token(
             &self.helix_client,
             self.client_id.to_owned(),
@@ -203,8 +203,9 @@ impl GdqBotTrait for GdqBot {
     /// 
     /// Returns an error if the current game cannot be retrieved from Twitch API.
     async fn get_current_game_from_twitch(&mut self) -> Result<Option<String>, GdqBotError> {
+        let logins: &[&types::UserNameRef] = &[self.channel_name.as_str().into()];
         let request = get_streams::GetStreamsRequest::builder()
-            .user_login(vec![self.channel_name.clone().into()])
+            .user_login(logins)
             .build();
         let response: Vec<get_streams::Stream> = self.helix_client.req_get(request, &self.access_token.clone().unwrap()).await?.data;
 
@@ -239,8 +240,8 @@ mod tests {
     async fn test_new() {
         let bot = GdqBot::new();
         assert_eq!(bot.channel_name, "gamesdonequick");
-        assert_eq!(bot.client_id, twitch_api2::twitch_oauth2::ClientId::new(""));
-        assert_eq!(bot.client_secret, twitch_api2::twitch_oauth2::ClientSecret::new(""));
+        assert_eq!(bot.client_id, twitch_api::twitch_oauth2::ClientId::new("".to_string()));
+        assert_eq!(bot.client_secret, twitch_api::twitch_oauth2::ClientSecret::new("".to_string()));
         assert!(bot.access_token.is_none());
         assert_eq!(bot.current_game, "");
         assert_eq!(bot.kvstore_token, "");

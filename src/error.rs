@@ -22,9 +22,9 @@ impl fmt::Display for GdqBotError {
     }
 }
 
-impl From<twitch_api2::helix::ClientRequestError<reqwest::Error>> for GdqBotError {
-    /// Converts a `twitch_api2::helix::ClientRequestError<reqwest::Error>` into a `GdqBotError`.
-    fn from(error: twitch_api2::helix::ClientRequestError<reqwest::Error>) -> Self {
+impl From<twitch_api::helix::ClientRequestError<reqwest::Error>> for GdqBotError {
+    /// Converts a `twitch_api::helix::ClientRequestError<reqwest::Error>` into a `GdqBotError`.
+    fn from(error: twitch_api::helix::ClientRequestError<reqwest::Error>) -> Self {
         GdqBotError::new(&format!("ClientRequestError: {:?}", error))
     }
 }
