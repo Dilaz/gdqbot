@@ -1,4 +1,4 @@
-FROM rust:1.76 AS builder
+FROM rust:1.83 AS builder
 WORKDIR /gdqbot
 COPY . .
 RUN cargo build --release
