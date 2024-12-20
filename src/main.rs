@@ -1,10 +1,7 @@
 use std::time::Duration;
 use serenity::{all::CreateEmbed, builder::ExecuteWebhook, http::Http, model::webhook::Webhook};
 use twitch_api::{helix::streams::get_streams, twitch_oauth2::AppAccessToken, types, HelixClient};
-use mockall::{*, predicate::*};
-
-#[cfg(any(test, debug_assertions))]
-use dotenvy;
+use miette::Result;
 
 mod error;
 use error::GdqBotError;
@@ -18,7 +15,7 @@ const USERNAME: &str = "GDQBot";
 const TWITCH_BASE_URL: &str = "https://www.twitch.tv/";
 
 #[tokio::main]
-async fn main() -> Result<(), twitch_api::twitch_oauth2::tokens::errors::AppAccessTokenError<twitch_api::client::CompatError<reqwest::Error>>>{
+async fn main() -> Result<(), GdqBotError> {
     #[cfg(any(test, debug_assertions))]
     dotenvy::dotenv().ok();
 
@@ -50,13 +47,12 @@ struct GdqBot<'a> {
     webhooks: Vec<String>,
 }
 
-#[automock]
 trait GdqBotTrait {
     fn new() -> Self;
     async fn init_helix(&mut self) -> Result<(), twitch_api::twitch_oauth2::tokens::errors::AppAccessTokenError<twitch_api::client::CompatError<reqwest::Error>>>;
     async fn run(&mut self);
     async fn get_current_game_from_db(&mut self) -> String;
-    async fn set_current_game_to_db(&self, game: &String) -> Result<(), error::GdqBotError>;
+    async fn set_current_game_to_db(&self, game: &str) -> Result<(), error::GdqBotError>;
     async fn send_game_change_message(&self, game: &str, stream_title: &str) -> Result<(), error::GdqBotError>;
     async fn get_current_game_from_twitch(&mut self) -> Result<Option<String>, GdqBotError>;
 }
@@ -93,13 +89,13 @@ impl<'a> GdqBotTrait for GdqBot<'a> {
         let http_client = reqwest::Client::new();
 
         GdqBot {
-            channel_name: String::from(std::env::var("TWITCH_CHANNEL_NAME").unwrap_or(DEFAULT_TWITCH_CHANNEL_NAME.to_string())),
+            channel_name: std::env::var("TWITCH_CHANNEL_NAME").unwrap_or(DEFAULT_TWITCH_CHANNEL_NAME.to_string()),
             client_id: twitch_api::twitch_oauth2::ClientId::new(std::env::var("TWITCH_CLIENT_ID").unwrap_or("".to_string())),
             client_secret: twitch_api::twitch_oauth2::ClientSecret::new(std::env::var("TWITCH_CLIENT_SECRET").unwrap_or("".to_string())),
             access_token: None,
-            current_game: String::from(""),
+            current_game: "".to_string(),
             http_client: http_client.clone(),
-            kvstore_token: String::from(std::env::var("KVSTORE_TOKEN").unwrap_or("".to_string())),
+            kvstore_token: std::env::var("KVSTORE_TOKEN").unwrap_or("".to_string()),
             helix_client: HelixClient::<'a, reqwest::Client>::with_client(http_client),
             webhooks: vec![webhook_url],
         }
@@ -149,7 +145,7 @@ impl<'a> GdqBotTrait for GdqBot<'a> {
         
         self.current_game = response.json().await.unwrap();
 
-        return self.current_game.clone();
+        self.current_game.clone()
     }
 
     /// Sets the current game in the key-value store.
@@ -157,7 +153,7 @@ impl<'a> GdqBotTrait for GdqBot<'a> {
     /// # Errors
     /// 
     /// Returns an error if the game cannot be set in the key-value store.
-    async fn set_current_game_to_db(&self, game: &String) -> Result<(), error::GdqBotError> {
+    async fn set_current_game_to_db(&self, game: &str) -> Result<(), error::GdqBotError> {
         let body = KVStoreRequest {
             value: game.to_string(),
         };
@@ -168,7 +164,7 @@ impl<'a> GdqBotTrait for GdqBot<'a> {
             .send().await?;
 
         if response.status() != 200 {
-            return Err("Error setting game to KVStore".into());
+            return Err(GdqBotError::Other("Error setting game to KVStore".to_string()));
         }
 
         println!("Saved game to KVStore: {}", game);
@@ -186,7 +182,7 @@ impl<'a> GdqBotTrait for GdqBot<'a> {
             let http = Http::new("");
             let webhook = Webhook::from_url(&http, webhook).await?;
             let embed = CreateEmbed::new()
-                .title(format!("GDQ hype!"))
+                .title("GDQ hype!")
                 .description(format!("Game changed to **{}**\n*{}*\n{}{}", &game, &stream_title, &TWITCH_BASE_URL, &self.channel_name));
             let builder = ExecuteWebhook::new().embed(embed).username(USERNAME);
             webhook.execute(&http, false, builder).await?;
