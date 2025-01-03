@@ -1,5 +1,6 @@
 use std::time::Duration;
 use serenity::{all::CreateEmbed, builder::ExecuteWebhook, http::Http, model::webhook::Webhook};
+use tracing::{info, error};
 use twitch_api::{helix::streams::get_streams, twitch_oauth2::AppAccessToken, types, HelixClient};
 use miette::Result;
 
@@ -16,14 +17,15 @@ const TWITCH_BASE_URL: &str = "https://www.twitch.tv/";
 
 #[tokio::main]
 async fn main() -> Result<(), GdqBotError> {
+    tracing_subscriber::fmt::init();
     #[cfg(any(test, debug_assertions))]
     dotenvy::dotenv().ok();
 
     let mut bot = GdqBot::new();
     bot.init_helix().await?;
-    bot.get_current_game_from_db().await;
-    println!("Current game: {}", bot.current_game.clone());
-    println!("Starting bot");
+    bot.get_current_game_from_db().await?;
+    info!("Current game: {}", bot.current_game.clone());
+    info!("Starting bot");
     bot.run().await;
 
     Ok(())
@@ -51,7 +53,7 @@ trait GdqBotTrait {
     fn new() -> Self;
     async fn init_helix(&mut self) -> Result<(), twitch_api::twitch_oauth2::tokens::errors::AppAccessTokenError<twitch_api::client::CompatError<reqwest::Error>>>;
     async fn run(&mut self);
-    async fn get_current_game_from_db(&mut self) -> String;
+    async fn get_current_game_from_db(&mut self) -> Result<String, GdqBotError>;
     async fn set_current_game_to_db(&self, game: &str) -> Result<(), error::GdqBotError>;
     async fn send_game_change_message(&self, game: &str, stream_title: &str) -> Result<(), error::GdqBotError>;
     async fn get_current_game_from_twitch(&mut self) -> Result<Option<String>, GdqBotError>;
@@ -114,14 +116,17 @@ impl<'a> GdqBotTrait for GdqBot<'a> {
             vec![], // scopes
         ).await;
 
-        if let Err(error) = token {
-            println!("Error: {:?}", error);
-            return Err(error);
+        match token {
+            Err(error) => {
+                error!("Error: {:?}", error);
+                Err(error)
+            },
+            Ok(token) => {
+                info!("App access token retrieved successfully");
+                self.access_token = Some(token);
+                Ok(())
+            }
         }
-
-        self.access_token = Some(token.unwrap());
-
-        Ok(())
     }
 
     /// Starts the bot and continuously checks for game changes.
@@ -134,18 +139,18 @@ impl<'a> GdqBotTrait for GdqBot<'a> {
     }
 
     /// Retrieves the current game from the key-value store.
-    async fn get_current_game_from_db(&mut self) -> String {
+    async fn get_current_game_from_db(&mut self) -> Result<String, GdqBotError> {
         let response = self.http_client.get(format!("{}{}", KVSTORE_URL, KVSTORE_KEY).as_str())
             .bearer_auth(&self.kvstore_token)
-            .send().await.unwrap();
+            .send().await?;
 
         if response.status() != 200 {
-            return String::from("");
+            return Err(GdqBotError::Other("Error getting game from KVStore".to_string()));
         }
         
-        self.current_game = response.json().await.unwrap();
+        self.current_game = response.json().await?;
 
-        self.current_game.clone()
+        Ok(self.current_game.clone())
     }
 
     /// Sets the current game in the key-value store.
@@ -167,7 +172,7 @@ impl<'a> GdqBotTrait for GdqBot<'a> {
             return Err(GdqBotError::Other("Error setting game to KVStore".to_string()));
         }
 
-        println!("Saved game to KVStore: {}", game);
+        info!("Saved game to KVStore: {}", game);
 
         Ok(())
     }
@@ -188,7 +193,7 @@ impl<'a> GdqBotTrait for GdqBot<'a> {
             webhook.execute(&http, false, builder).await?;
         }
 
-        println!("Game changed to: {}", game);
+        info!("Game changed to: {}", game);
     
         Ok(())
     }
@@ -206,13 +211,13 @@ impl<'a> GdqBotTrait for GdqBot<'a> {
         let response: Vec<get_streams::Stream> = self.helix_client.req_get(request, &self.access_token.clone().unwrap()).await?.data;
 
         if response.is_empty() {
-            println!("Error: stream is offline");
+            error!("Error: stream is offline");
             return Ok(None);
         }
         let game = String::from(response.first().unwrap().game_name.as_str());
         let stream_title: String = String::from(response.first().unwrap().title.as_str());
 
-        println!("Got current game from Twitch: {}", game);
+        info!("Got current game from Twitch: {}", game);
 
         // Game name changed, save it to db and send message through webhook
         if game.ne(&self.current_game) {
