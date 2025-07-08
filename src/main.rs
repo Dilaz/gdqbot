@@ -51,7 +51,7 @@ struct GdqBot<'a> {
 
 trait GdqBotTrait {
     fn new() -> Self;
-    async fn init_helix(&mut self) -> Result<(), twitch_api::twitch_oauth2::tokens::errors::AppAccessTokenError<twitch_api::client::CompatError<reqwest::Error>>>;
+    async fn init_helix(&mut self) -> Result<(), GdqBotError>;
     async fn run(&mut self);
     async fn get_current_game_from_db(&mut self) -> Result<String, GdqBotError>;
     async fn set_current_game_to_db(&self, game: &str) -> Result<(), error::GdqBotError>;
@@ -108,7 +108,7 @@ impl<'a> GdqBotTrait for GdqBot<'a> {
     /// # Errors
     /// 
     /// Returns an error if the app access token cannot be retrieved.
-    async fn init_helix(&mut self) -> Result<(), twitch_api::twitch_oauth2::tokens::errors::AppAccessTokenError<twitch_api::client::CompatError<reqwest::Error>>> {
+    async fn init_helix(&mut self) -> Result<(), GdqBotError> {
         let token = AppAccessToken::get_app_access_token(
             &self.helix_client,
             self.client_id.to_owned(),
@@ -119,7 +119,7 @@ impl<'a> GdqBotTrait for GdqBot<'a> {
         match token {
             Err(error) => {
                 error!("Error: {:?}", error);
-                Err(error)
+                Err(error.into())
             },
             Ok(token) => {
                 info!("App access token retrieved successfully");
@@ -140,7 +140,7 @@ impl<'a> GdqBotTrait for GdqBot<'a> {
 
     /// Retrieves the current game from the key-value store.
     async fn get_current_game_from_db(&mut self) -> Result<String, GdqBotError> {
-        let response = self.http_client.get(format!("{}{}", KVSTORE_URL, KVSTORE_KEY).as_str())
+        let response = self.http_client.get(format!("{}{}", &KVSTORE_URL, &KVSTORE_KEY).as_str())
             .bearer_auth(&self.kvstore_token)
             .send().await?;
 
@@ -163,7 +163,7 @@ impl<'a> GdqBotTrait for GdqBot<'a> {
             value: game.to_string(),
         };
 
-        let response = self.http_client.post(format!("{}{}", KVSTORE_URL, KVSTORE_KEY).as_str())
+        let response = self.http_client.post(format!("{}{}", &KVSTORE_URL, &KVSTORE_KEY).as_str())
             .bearer_auth(&self.kvstore_token)
             .json(&body)
             .send().await?;
