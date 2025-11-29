@@ -1,0 +1,25 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gdqbot
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/dilaz/gdqbot2.git
+    targetRevision: master
+    path: k8s
+    directory:
+      exclude: "{configmap.yaml}"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gdqbot
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -15,6 +15,12 @@ pub enum GdqBotError {
     #[error(transparent)]
     SerenityError(Box<serenity::prelude::SerenityError>),
 
+    #[error("Stream is offline after {0} consecutive checks")]
+    StreamOffline(u32),
+
+    #[error("Stream is a rerun: {0}")]
+    StreamRerun(String),
+
     #[error("Other error: {0}")]
     Other(String),
 }

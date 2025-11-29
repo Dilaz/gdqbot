@@ -19,7 +19,7 @@ spec:
       containers:
       - name: gdqbot
         image: ghcr.io/dilaz/gdqbot:latest
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
@@ -27,14 +27,6 @@ spec:
           runAsUser: 10000
           capabilities:
             drop: [ALL]
-        livenessProbe:
-          exec:
-            command:
-            - /bin/sh
-            - -c
-            - /bin/ps -ef | grep gdqbot | grep -v grep
-          initialDelaySeconds: 10
-          periodSeconds: 10
         resources:
           requests:
             cpu: 100m
@@ -47,3 +39,6 @@ spec:
               name: gdqbot-configs
           - secretRef:
               name: gdqbot-secrets
+        env:
+          - name: OFFLINE_CHECK_COUNT
+            value: "3"
