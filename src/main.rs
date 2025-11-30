@@ -3,13 +3,15 @@ use serenity::{all::CreateEmbed, builder::ExecuteWebhook, http::Http, model::web
 use tracing::{info, error, warn};
 use twitch_api::{helix::streams::get_streams, twitch_oauth2::AppAccessToken, types, HelixClient};
 use miette::Result;
+use kvstore_client::{KvStoreClient, generated::{GetRequest, SetRequest}};
+use tonic::transport::Channel;
 
 mod error;
 use error::GdqBotError;
 
 // Constants
 const DEFAULT_TWITCH_CHANNEL_NAME: &str = "gamesdonequick";
-const KVSTORE_URL: &str = "https://kvstore.binarydream.fi/";
+const DEFAULT_KVSTORE_URL: &str = "http://kvstore.binarydream.fi:50051";
 const KVSTORE_KEY: &str = "gdq_game";
 const POLL_RATE: Duration = Duration::from_secs(2 * 60);
 const USERNAME: &str = "GDQBot";
@@ -24,8 +26,11 @@ async fn main() -> Result<(), GdqBotError> {
 
     let mut bot = GdqBot::new();
     bot.init_helix().await?;
-    bot.get_current_game_from_db().await?;
-    info!("Current game: {}", bot.current_game.clone());
+    bot.init_kvstore().await?;
+    match bot.get_current_game_from_db().await {
+        Ok(game) => info!("Current game from DB: {}", game),
+        Err(e) => warn!("Failed to get current game from DB, starting fresh: {}", e),
+    };
     info!(
         "Starting bot with offline threshold of {} checks",
         bot.offline_threshold
@@ -51,20 +56,15 @@ async fn main() -> Result<(), GdqBotError> {
     }
 }
 
-/// Represents a request to the key-value store.
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
-struct KVStoreRequest {
-    value: String,
-}
-
 struct GdqBot<'a> {
     channel_name: String,
     client_id: twitch_api::twitch_oauth2::ClientId,
     client_secret: twitch_api::twitch_oauth2::ClientSecret,
     access_token: Option<AppAccessToken>,
     current_game: String,
-    http_client: reqwest::Client,
+    kvstore_url: String,
     kvstore_token: String,
+    kvstore_client: Option<KvStoreClient<Channel>>,
     helix_client: HelixClient<'a, reqwest::Client>,
     webhooks: Vec<String>,
     offline_count: u32,
@@ -74,43 +74,19 @@ struct GdqBot<'a> {
 trait GdqBotTrait {
     fn new() -> Self;
     async fn init_helix(&mut self) -> Result<(), GdqBotError>;
+    async fn init_kvstore(&mut self) -> Result<(), GdqBotError>;
     async fn run(&mut self) -> Result<(), GdqBotError>;
     async fn get_current_game_from_db(&mut self) -> Result<String, GdqBotError>;
-    async fn set_current_game_to_db(&self, game: &str) -> Result<(), error::GdqBotError>;
+    async fn set_current_game_to_db(&mut self, game: &str) -> Result<(), error::GdqBotError>;
     async fn send_game_change_message(&self, game: &str, stream_title: &str) -> Result<(), error::GdqBotError>;
     async fn get_current_game_from_twitch(&mut self) -> Result<Option<String>, GdqBotError>;
 }
 
 /// Represents a GDQBot instance.
-///
-/// The GDQBot struct contains the necessary fields and methods to interact with Twitch API,
-/// retrieve and store data in a key-value store, and send game change messages through webhooks.
-///
-/// # Fields
-///
-/// - `client_id`: The Twitch client ID.
-/// - `client_secret`: The Twitch client secret.
-/// - `access_token`: The access token for Twitch API.
-/// - `current_game`: The current game being played.
-/// - `http_client`: The HTTP client for making requests.
-/// - `kvstore_token`: The token for accessing the key-value store.
-/// - `helix_client`: The Helix client for interacting with Twitch API.
-/// - `webhooks`: The list of webhooks to send game change messages to.
-///
-/// # Methods
-///
-/// - `new`: Creates a new instance of GDQBot.
-/// - `init_helix`: Initializes the Helix client and retrieves the app access token.
-/// - `run`: Starts the bot and continuously checks for game changes.
-/// - `get_current_game_from_db`: Retrieves the current game from the key-value store.
-/// - `set_current_game_to_db`: Sets the current game in the key-value store.
-/// - `send_game_change_message`: Sends a game change message through webhooks.
-/// - `get_current_game_from_twitch`: Retrieves the current game from Twitch API.
 impl<'a> GdqBotTrait for GdqBot<'a> {
     /// Creates a new instance of GDQBot.
     fn new() -> Self {
         let webhook_url = std::env::var("WEBHOOK_URL").unwrap_or("".to_string());
-        let http_client = reqwest::Client::new();
         let offline_threshold: u32 = std::env::var("OFFLINE_CHECK_COUNT")
             .ok()
             .and_then(|s| s.parse().ok())
@@ -122,13 +98,22 @@ impl<'a> GdqBotTrait for GdqBot<'a> {
             client_secret: twitch_api::twitch_oauth2::ClientSecret::new(std::env::var("TWITCH_CLIENT_SECRET").unwrap_or("".to_string())),
             access_token: None,
             current_game: "".to_string(),
-            http_client: http_client.clone(),
+            kvstore_url: std::env::var("KVSTORE_URL").unwrap_or(DEFAULT_KVSTORE_URL.to_string()),
             kvstore_token: std::env::var("KVSTORE_TOKEN").unwrap_or("".to_string()),
-            helix_client: HelixClient::<'a, reqwest::Client>::with_client(http_client),
+            kvstore_client: None,
+            helix_client: HelixClient::default(),
             webhooks: vec![webhook_url],
             offline_count: 0,
             offline_threshold,
         }
+    }
+
+    /// Initializes the KVStore gRPC client.
+    async fn init_kvstore(&mut self) -> Result<(), GdqBotError> {
+        let client = kvstore_client::connect(&self.kvstore_url).await?;
+        info!("Connected to KVStore at {}", self.kvstore_url);
+        self.kvstore_client = Some(client);
+        Ok(())
     }
 
     /// Initializes the Helix client and retrieves the app access token.
@@ -190,38 +175,41 @@ impl<'a> GdqBotTrait for GdqBot<'a> {
 
     /// Retrieves the current game from the key-value store.
     async fn get_current_game_from_db(&mut self) -> Result<String, GdqBotError> {
-        let response = self.http_client.get(format!("{}{}", &KVSTORE_URL, &KVSTORE_KEY).as_str())
-            .bearer_auth(&self.kvstore_token)
-            .send().await?;
+        let client = self.kvstore_client.as_mut()
+            .ok_or_else(|| GdqBotError::Other("KVStore client not initialized".to_string()))?;
 
-        if response.status() != 200 {
-            return Err(GdqBotError::Other("Error getting game from KVStore".to_string()));
+        let request = GetRequest {
+            key: KVSTORE_KEY.to_string(),
+            token: self.kvstore_token.clone(),
+        };
+
+        let response = client.get(request).await?.into_inner();
+
+        if !response.found {
+            return Err(GdqBotError::Other("Game not found in KVStore".to_string()));
         }
-        
-        self.current_game = response.json().await?;
 
+        self.current_game = response.value;
         Ok(self.current_game.clone())
     }
 
     /// Sets the current game in the key-value store.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// Returns an error if the game cannot be set in the key-value store.
-    async fn set_current_game_to_db(&self, game: &str) -> Result<(), error::GdqBotError> {
-        let body = KVStoreRequest {
+    async fn set_current_game_to_db(&mut self, game: &str) -> Result<(), error::GdqBotError> {
+        let client = self.kvstore_client.as_mut()
+            .ok_or_else(|| GdqBotError::Other("KVStore client not initialized".to_string()))?;
+
+        let request = SetRequest {
+            key: KVSTORE_KEY.to_string(),
             value: game.to_string(),
+            token: self.kvstore_token.clone(),
+            ttl_seconds: None,
         };
 
-        let response = self.http_client.post(format!("{}{}", &KVSTORE_URL, &KVSTORE_KEY).as_str())
-            .bearer_auth(&self.kvstore_token)
-            .json(&body)
-            .send().await?;
-
-        if response.status() != 200 {
-            return Err(GdqBotError::Other("Error setting game to KVStore".to_string()));
-        }
-
+        client.set(request).await?;
         info!("Saved game to KVStore: {}", game);
 
         Ok(())
@@ -277,10 +265,12 @@ impl<'a> GdqBotTrait for GdqBot<'a> {
 
         // Game name changed, save it to db and send message through webhook
         if game.ne(&self.current_game) {
-            let _ = tokio::join!(
-                self.set_current_game_to_db(&game),
-                self.send_game_change_message(&game, &stream_title)
-            );
+            if let Err(e) = self.set_current_game_to_db(&game).await {
+                error!("Failed to save game to KVStore: {}", e);
+            }
+            if let Err(e) = self.send_game_change_message(&game, &stream_title).await {
+                error!("Failed to send game change message: {}", e);
+            }
         }
 
         self.current_game = game;

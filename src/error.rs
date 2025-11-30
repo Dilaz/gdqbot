@@ -11,6 +11,12 @@ pub enum GdqBotError {
     
     #[error(transparent)]
     ReqwestError(#[from] reqwest::Error),
+
+    #[error(transparent)]
+    TonicStatus(#[from] tonic::Status),
+
+    #[error(transparent)]
+    TonicTransportError(#[from] tonic::transport::Error),
     
     #[error(transparent)]
     SerenityError(Box<serenity::prelude::SerenityError>),
