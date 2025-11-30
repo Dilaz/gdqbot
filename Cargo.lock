@@ -1118,7 +1118,7 @@ dependencies = [
 [[package]]
 name = "kvstore-client"
 version = "0.2.0"
-source = "git+https://github.com/dilaz/kvstore#e991990a2eef4466114f0479729ddb9f11e6987d"
+source = "git+https://github.com/dilaz/kvstore#c5a52f0330b79510833a52e1b55b3cd7b32fa070"
 dependencies = [
  "prost",
  "tokio",
@@ -3119,7 +3119,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
