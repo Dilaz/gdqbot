@@ -1,7 +1,7 @@
 FROM rust:1.85 AS builder
 RUN apt-get update && apt-get install -y protobuf-compiler && rm -rf /var/lib/apt/lists/*
-ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
 WORKDIR /gdqbot
+RUN git clone --bare https://github.com/dilaz/kvstore /usr/local/cargo/git/db/kvstore-24845053cd73a984
 COPY . .
 RUN cargo build --release
 
