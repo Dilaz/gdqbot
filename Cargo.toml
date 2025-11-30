@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-kvstore-client = { git = "https://github.com/dilaz/kvstore" }
+kvstore-client = { git = "https://github.com/dilaz/kvstore", branch = "master" }
 tonic = { version = "0.14.2", features = ["tls-native-roots", "tls-ring"] }
 reqwest = { version = "0.12.24", features = ["json"] }
 serde = { version = "1.0.228", features = ["derive"] }

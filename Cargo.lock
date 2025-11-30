@@ -1118,7 +1118,7 @@ dependencies = [
 [[package]]
 name = "kvstore-client"
 version = "0.2.0"
-source = "git+https://github.com/dilaz/kvstore#c5a52f0330b79510833a52e1b55b3cd7b32fa070"
+source = "git+https://github.com/dilaz/kvstore?branch=master#c5a52f0330b79510833a52e1b55b3cd7b32fa070"
 dependencies = [
  "prost",
  "tokio",
