@@ -1,10 +1,13 @@
-use std::time::Duration;
-use serenity::{all::CreateEmbed, builder::ExecuteWebhook, http::Http, model::webhook::Webhook};
-use tracing::{info, error, warn};
-use twitch_api::{helix::streams::get_streams, twitch_oauth2::AppAccessToken, types, HelixClient};
+use kvstore_client::{
+    generated::{GetRequest, SetRequest},
+    KvStoreClient,
+};
 use miette::Result;
-use kvstore_client::{KvStoreClient, generated::{GetRequest, SetRequest}};
+use serenity::{all::CreateEmbed, builder::ExecuteWebhook, http::Http, model::webhook::Webhook};
+use std::time::Duration;
 use tonic::transport::Channel;
+use tracing::{error, info, warn};
+use twitch_api::{helix::streams::get_streams, twitch_oauth2::AppAccessToken, types, HelixClient};
 
 mod error;
 use error::GdqBotError;
@@ -78,7 +81,11 @@ trait GdqBotTrait {
     async fn run(&mut self) -> Result<(), GdqBotError>;
     async fn get_current_game_from_db(&mut self) -> Result<String, GdqBotError>;
     async fn set_current_game_to_db(&mut self, game: &str) -> Result<(), error::GdqBotError>;
-    async fn send_game_change_message(&self, game: &str, stream_title: &str) -> Result<(), error::GdqBotError>;
+    async fn send_game_change_message(
+        &self,
+        game: &str,
+        stream_title: &str,
+    ) -> Result<(), error::GdqBotError>;
     async fn get_current_game_from_twitch(&mut self) -> Result<Option<String>, GdqBotError>;
 }
 
@@ -93,9 +100,14 @@ impl<'a> GdqBotTrait for GdqBot<'a> {
             .unwrap_or(DEFAULT_OFFLINE_THRESHOLD);
 
         GdqBot {
-            channel_name: std::env::var("TWITCH_CHANNEL_NAME").unwrap_or(DEFAULT_TWITCH_CHANNEL_NAME.to_string()),
-            client_id: twitch_api::twitch_oauth2::ClientId::new(std::env::var("TWITCH_CLIENT_ID").unwrap_or("".to_string())),
-            client_secret: twitch_api::twitch_oauth2::ClientSecret::new(std::env::var("TWITCH_CLIENT_SECRET").unwrap_or("".to_string())),
+            channel_name: std::env::var("TWITCH_CHANNEL_NAME")
+                .unwrap_or(DEFAULT_TWITCH_CHANNEL_NAME.to_string()),
+            client_id: twitch_api::twitch_oauth2::ClientId::new(
+                std::env::var("TWITCH_CLIENT_ID").unwrap_or("".to_string()),
+            ),
+            client_secret: twitch_api::twitch_oauth2::ClientSecret::new(
+                std::env::var("TWITCH_CLIENT_SECRET").unwrap_or("".to_string()),
+            ),
             access_token: None,
             current_game: "".to_string(),
             kvstore_url: std::env::var("KVSTORE_URL").unwrap_or(DEFAULT_KVSTORE_URL.to_string()),
@@ -117,9 +129,9 @@ impl<'a> GdqBotTrait for GdqBot<'a> {
     }
 
     /// Initializes the Helix client and retrieves the app access token.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// Returns an error if the app access token cannot be retrieved.
     async fn init_helix(&mut self) -> Result<(), GdqBotError> {
         let token = AppAccessToken::get_app_access_token(
@@ -127,13 +139,14 @@ impl<'a> GdqBotTrait for GdqBot<'a> {
             self.client_id.to_owned(),
             self.client_secret.to_owned(),
             vec![], // scopes
-        ).await;
+        )
+        .await;
 
         match token {
             Err(error) => {
                 error!("Error: {:?}", error);
                 Err(error.into())
-            },
+            }
             Ok(token) => {
                 info!("App access token retrieved successfully");
                 self.access_token = Some(token);
@@ -175,7 +188,9 @@ impl<'a> GdqBotTrait for GdqBot<'a> {
 
     /// Retrieves the current game from the key-value store.
     async fn get_current_game_from_db(&mut self) -> Result<String, GdqBotError> {
-        let client = self.kvstore_client.as_mut()
+        let client = self
+            .kvstore_client
+            .as_mut()
             .ok_or_else(|| GdqBotError::Other("KVStore client not initialized".to_string()))?;
 
         let request = GetRequest {
@@ -199,7 +214,9 @@ impl<'a> GdqBotTrait for GdqBot<'a> {
     ///
     /// Returns an error if the game cannot be set in the key-value store.
     async fn set_current_game_to_db(&mut self, game: &str) -> Result<(), error::GdqBotError> {
-        let client = self.kvstore_client.as_mut()
+        let client = self
+            .kvstore_client
+            .as_mut()
             .ok_or_else(|| GdqBotError::Other("KVStore client not initialized".to_string()))?;
 
         let request = SetRequest {
@@ -216,37 +233,46 @@ impl<'a> GdqBotTrait for GdqBot<'a> {
     }
 
     /// Sends a game change message through webhooks.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// Returns an error if the game change message cannot be sent.
-    async fn send_game_change_message(&self, game: &str, stream_title: &str) -> Result<(), error::GdqBotError> {
+    async fn send_game_change_message(
+        &self,
+        game: &str,
+        stream_title: &str,
+    ) -> Result<(), error::GdqBotError> {
         for webhook in self.webhooks.iter() {
             let http = Http::new("");
             let webhook = Webhook::from_url(&http, webhook).await?;
-            let embed = CreateEmbed::new()
-                .title("GDQ hype!")
-                .description(format!("Game changed to **{}**\n*{}*\n{}{}", &game, &stream_title, &TWITCH_BASE_URL, &self.channel_name));
+            let embed = CreateEmbed::new().title("GDQ hype!").description(format!(
+                "Game changed to **{}**\n*{}*\n{}{}",
+                &game, &stream_title, &TWITCH_BASE_URL, &self.channel_name
+            ));
             let builder = ExecuteWebhook::new().embed(embed).username(USERNAME);
             webhook.execute(&http, false, builder).await?;
         }
 
         info!("Game changed to: {}", game);
-    
+
         Ok(())
     }
 
     /// Retrieves the current game from Twitch API.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// Returns an error if the current game cannot be retrieved from Twitch API.
     async fn get_current_game_from_twitch(&mut self) -> Result<Option<String>, GdqBotError> {
         let logins: &[&types::UserNameRef] = &[self.channel_name.as_str().into()];
         let request = get_streams::GetStreamsRequest::builder()
             .user_login(logins)
             .build();
-        let response: Vec<get_streams::Stream> = self.helix_client.req_get(request, &self.access_token.clone().unwrap()).await?.data;
+        let response: Vec<get_streams::Stream> = self
+            .helix_client
+            .req_get(request, &self.access_token.clone().unwrap())
+            .await?
+            .data;
 
         if response.is_empty() {
             warn!("Stream is offline");

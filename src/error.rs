@@ -7,8 +7,14 @@ pub enum GdqBotError {
     HelixError(Box<twitch_api::helix::ClientRequestError<reqwest::Error>>),
 
     #[error(transparent)]
-    HelixAccessError(Box<twitch_api::twitch_oauth2::tokens::errors::AppAccessTokenError<twitch_api::client::CompatError<reqwest::Error>>>),
-    
+    HelixAccessError(
+        Box<
+            twitch_api::twitch_oauth2::tokens::errors::AppAccessTokenError<
+                twitch_api::client::CompatError<reqwest::Error>,
+            >,
+        >,
+    ),
+
     #[error(transparent)]
     ReqwestError(#[from] reqwest::Error),
 
@@ -17,7 +23,7 @@ pub enum GdqBotError {
 
     #[error(transparent)]
     TonicTransportError(#[from] tonic::transport::Error),
-    
+
     #[error(transparent)]
     SerenityError(Box<serenity::prelude::SerenityError>),
 
@@ -37,8 +43,18 @@ impl From<twitch_api::helix::ClientRequestError<reqwest::Error>> for GdqBotError
     }
 }
 
-impl From<twitch_api::twitch_oauth2::tokens::errors::AppAccessTokenError<twitch_api::client::CompatError<reqwest::Error>>> for GdqBotError {
-    fn from(error: twitch_api::twitch_oauth2::tokens::errors::AppAccessTokenError<twitch_api::client::CompatError<reqwest::Error>>) -> Self {
+impl
+    From<
+        twitch_api::twitch_oauth2::tokens::errors::AppAccessTokenError<
+            twitch_api::client::CompatError<reqwest::Error>,
+        >,
+    > for GdqBotError
+{
+    fn from(
+        error: twitch_api::twitch_oauth2::tokens::errors::AppAccessTokenError<
+            twitch_api::client::CompatError<reqwest::Error>,
+        >,
+    ) -> Self {
         Self::HelixAccessError(Box::new(error))
     }
 }
