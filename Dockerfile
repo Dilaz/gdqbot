@@ -1,4 +1,4 @@
-FROM rust:1.85 AS builder
+FROM rust:1.96 AS builder
 RUN apt-get update && apt-get install -y protobuf-compiler && rm -rf /var/lib/apt/lists/*
 WORKDIR /gdqbot
 RUN git clone --depth 1 https://github.com/dilaz/kvstore /kvstore
