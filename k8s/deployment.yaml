@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: gdqbot
-        image: ghcr.io/dilaz/gdqbot:af1e958565e36cf04047ecea147143715dc5eb1b
+        image: ghcr.io/dilaz/gdqbot:fdd3d55ed4b8b919f32398585874e946c9066e7f
         imagePullPolicy: IfNotPresent
         securityContext:
           allowPrivilegeEscalation: false
